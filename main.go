@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -23,15 +24,18 @@ import (
 )
 
 const (
-	scope            = "https://www.googleapis.com/auth/drive.file"
-	filenameInput    = "filename"
-	nameInput        = "name"
-	folderIdInput    = "folderId"
-	credentialsInput = "credentials"
-	overwrite        = "false"
+	scope                 = "https://www.googleapis.com/auth/drive.file"
+	filenameInput         = "filename"
+	nameInput             = "name"
+	folderIdInput         = "folderId"
+	credentialsInput      = "credentials"
+	overwrite             = "false"
+	mimeTypeInput         = "mimeType"
+	useCompleteSourceName = "useCompleteSourceFilenameAsName"
+	namePrefixInput       = "namePrefix"
 )
 
-func uploadToDrive(svc *drive.Service, filename string, folderId string, driveFile *drive.File, name string) {
+func uploadToDrive(svc *drive.Service, filename string, folderId string, driveFile *drive.File, name string, mimeType string) {
 	file, err := os.Open(filename)
 	if err != nil {
 		githubactions.Fatalf(fmt.Sprintf("opening file with filename: %v failed with error: %v", filename, err))
@@ -39,13 +43,15 @@ func uploadToDrive(svc *drive.Service, filename string, folderId string, driveFi
 
 	if driveFile != nil {
 		f := &drive.File{
-			Name: file.Name(),
+			Name:     name,
+			MimeType: mimeType,
 		}
-		_, err = svc.Files.Update(driveFile.Id, f).Media(file).Do()
+		_, err = svc.Files.Update(driveFile.Id, f).AddParents(folderId).Media(file).Do()
 	} else {
 		f := &drive.File{
-			Name:    name,
-			Parents: []string{folderId},
+			Name:     name,
+			MimeType: mimeType,
+			Parents:  []string{folderId},
 		}
 		_, err = svc.Files.Create(f).Media(file).Do()
 	}
@@ -63,6 +69,14 @@ func main() {
 	filename := githubactions.GetInput(filenameInput)
 	if filename == "" {
 		missingInput(filenameInput)
+	}
+	files, err := filepath.Glob(filename)
+	fmt.Printf("Files: %v\n", files)
+	if err != nil {
+		githubactions.Fatalf(fmt.Sprintf("Invalid filename pattern: %v", err))
+	}
+	if len(files) == 0 {
+		githubactions.Fatalf(fmt.Sprintf("No file found! pattern: %s", filename))
 	}
 
 	// get overwrite flag
@@ -82,6 +96,21 @@ func main() {
 	if folderId == "" {
 		missingInput(folderIdInput)
 	}
+
+	// get file mimeType argument from action input
+	mimeType := githubactions.GetInput(mimeTypeInput)
+
+	var useCompleteSourceFilenameAsNameFlag bool
+	useCompleteSourceFilenameAsName := githubactions.GetInput(useCompleteSourceName)
+	if useCompleteSourceFilenameAsName == "" {
+		fmt.Println("useCompleteSourceFilenameAsName is disabled.")
+		useCompleteSourceFilenameAsNameFlag = false
+	} else {
+		useCompleteSourceFilenameAsNameFlag, _ = strconv.ParseBool(useCompleteSourceFilenameAsName)
+	}
+
+	// get filename prefix
+	filenamePrefix := githubactions.GetInput(namePrefixInput)
 
 	// get base64 encoded credentials argument from action input
 	credentials := githubactions.GetInput(credentialsInput)
@@ -115,34 +144,64 @@ func main() {
 		log.Println(err)
 	}
 
-	if name == "" {
-		file, err := os.Open(filename)
-		if err != nil {
-			githubactions.Fatalf(fmt.Sprintf("opening file with filename: %v failed with error: %v", filename, err))
+	useSourceFilename := len(files) > 1
+
+	for _, file := range files {
+		var targetName string
+		if useCompleteSourceFilenameAsNameFlag {
+			targetName = file
+		} else if useSourceFilename || name == "" {
+			targetName = filepath.Base(file)
+		} else {
+			targetName = name
 		}
-		name = file.Name()
+		if targetName == "" {
+			githubactions.Fatalf("Could not discover target file name")
+		} else if filenamePrefix != "" {
+			targetName = filenamePrefix + targetName
+		}
+		uploadFile(svc, file, folderId, targetName, mimeType, overwriteFlag)
 	}
+}
+
+func uploadFile(svc *drive.Service, filename string, folderId string, name string, mimeType string, overwriteFlag bool) {
+
+	fmt.Printf("target file name: %s\n", name)
 
 	if overwriteFlag {
-		r, err := svc.Files.List().Do()
+		r, err := svc.Files.List().Fields("files(name,id,mimeType,parents)").Q("name='" + name + "'").Do()
 		if err != nil {
 			log.Fatalf("Unable to retrieve files: %v", err)
 			fmt.Println("Unable to retrieve files")
 		}
-		fmt.Println("Files:")
-		if len(r.Files) == 0 {
-			fmt.Println("No similar files found. Creating a new file")
-			uploadToDrive(svc, filename, folderId, nil, name)
-		} else {
-			for _, i := range r.Files {
-				if filename == i.Name {
-					fmt.Printf("Overwriting file: %s (%s)\n", i.Name, i.Id)
-					uploadToDrive(svc, filename, folderId, i, "")
+		fmt.Printf("Files: %d\n", len(r.Files))
+		var currentFile *drive.File = nil
+		for _, i := range r.Files {
+			found := false
+			if name == i.Name {
+				currentFile = i
+				for _, p := range i.Parents {
+					if p == folderId {
+						fmt.Println("file found in expected folder")
+						found = true
+						break
+					}
 				}
 			}
+			if found {
+				break
+			}
+		}
+
+		if currentFile == nil {
+			fmt.Println("No similar files found. Creating a new file")
+			uploadToDrive(svc, filename, folderId, nil, name, mimeType)
+		} else {
+			fmt.Printf("Overwriting file: %s (%s)\n", currentFile.Name, currentFile.Id)
+			uploadToDrive(svc, filename, folderId, currentFile, name, mimeType)
 		}
 	} else {
-		uploadToDrive(svc, filename, folderId, nil, name)
+		uploadToDrive(svc, filename, folderId, nil, name, mimeType)
 	}
 }
 
