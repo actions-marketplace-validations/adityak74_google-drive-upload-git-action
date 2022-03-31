@@ -21,17 +21,31 @@ Go to `https://console.developers.google.com/apis/api/drive.googleapis.com/overv
 ## ``filename``
 Required: **YES**.  
 
-The name of the file you want to upload.
+The name of the file you want to upload. Wildcards can be used to upload more than one file.
 
 ## ``name``
 Required: **NO**
 
-The name you want the file to have in Google Drive. If this input is not provided, it will use the `filename`.
+The name you want the file to have in Google Drive. If this input is not provided, it will use only the filename of the source path. It will be ignored if there are more than one file to be uploaded.
 
 ## ``overwrite``
 Required: **NO**
 
-If you want to overwrite the filename with existing file, it will use the `filename`.
+If you want to overwrite the filename with existing file, it will use the target filename.
+## ``mimeType``
+Required: **NO**
+
+file MimeType. If absent, Google Drive will attempt to automatically detect an appropriate value.
+
+## ``useCompleteSourceFilenameAsName``
+Required: **NO**
+
+If true, the target file name will be the complete source filename and `name` parameter will be ignored.
+
+## ``namePrefix``
+Required: **NO**
+
+Prefix to be added to target filename.
 
 ## ``folderId``
 Required: **YES**. 
