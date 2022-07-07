@@ -46,14 +46,14 @@ func uploadToDrive(svc *drive.Service, filename string, folderId string, driveFi
 			Name:     name,
 			MimeType: mimeType,
 		}
-		_, err = svc.Files.Update(driveFile.Id, f).AddParents(folderId).Media(file).Do()
+		_, err = svc.Files.Update(driveFile.Id, f).AddParents(folderId).Media(file).SupportsAllDrives(true).Do()
 	} else {
 		f := &drive.File{
 			Name:     name,
 			MimeType: mimeType,
 			Parents:  []string{folderId},
 		}
-		_, err = svc.Files.Create(f).Media(file).Do()
+		_, err = svc.Files.Create(f).Media(file).SupportsAllDrives(true).Do()
 	}
 
 	if err != nil {
@@ -169,7 +169,7 @@ func uploadFile(svc *drive.Service, filename string, folderId string, name strin
 	fmt.Printf("target file name: %s\n", name)
 
 	if overwriteFlag {
-		r, err := svc.Files.List().Fields("files(name,id,mimeType,parents)").Q("name='" + name + "'").Do()
+		r, err := svc.Files.List().Fields("files(name,id,mimeType,parents)").Q("name='" + name + "'").IncludeItemsFromAllDrives(true).Corpora("allDrives").SupportsAllDrives(true).Do()
 		if err != nil {
 			log.Fatalf("Unable to retrieve files: %v", err)
 			fmt.Println("Unable to retrieve files")
