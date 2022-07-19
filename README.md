@@ -9,7 +9,7 @@ Thanks to [Team Tumbleweed](https://github.com/team-tumbleweed) for developing t
 
 To make a GSA go to the [Credentials Dashboard](https://console.cloud.google.com/apis/credentials). You will need to download the **.json key** and base64 encode it. You will use this string as the `credentials` input. To convert the *json* file to base64 without having to use an online tool (which is insecure), use this command:
 
-`echo -n $(cat credentials.json)| base64 -w 0`
+`base64 credentials.json -w0`
 
 On mac this the base64 by default opts for -w as 0, you can skip and just use base64 without any params.
 
