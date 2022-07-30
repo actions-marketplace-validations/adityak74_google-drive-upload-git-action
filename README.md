@@ -42,6 +42,11 @@ Required: **NO**
 
 If true, the target file name will be the complete source filename and `name` parameter will be ignored.
 
+## ``mirrorDirectoryStructure``
+Required: **NO**
+
+If true, the directory structure of the source file will be recreated relative to ``folderId``.
+
 ## ``namePrefix``
 Required: **NO**
 
@@ -90,5 +95,17 @@ jobs:
           folderId: ${{ secrets.folderId }}
           name: "documentation.zip" # optional string
           overwrite: "true" # optional boolean
+      - name: Make Directory Structure
+        run: |
+          mkdir -p w/x/y
+          date +%s > w/x/y/z
+      - name: Mirror Directory Structure
+        uses: adityak74/google-drive-upload-git-action@main
+        with:
+          credentials: ${{ secrets.DRIVE_CREDENTIALS }}
+          filename: w/x/y/z
+          folderId: ${{ secrets.folderId }}
+          overwrite: "true"
+          mirrorDirectoryStructure: "true"
           
 ```
