@@ -3,6 +3,9 @@
 
 # google-drive-upload-git-action
 Github action that uploads files to Google Drive.
+
+![star-history-2025323 (1)](https://github.com/user-attachments/assets/5f54c80b-96cd-4314-a8b5-3f1ac5504fd4)
+
 **This only works with a Google Service Account!**
 
 Thanks to [Team Tumbleweed](https://github.com/team-tumbleweed) for developing the initial version of this actions package.
